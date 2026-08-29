@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Secure Mail Gateway - Sign in</title>
+<style>body{font:16px Arial,sans-serif;max-width:420px;margin:70px auto}label,input,button{display:block;width:100%;box-sizing:border-box;margin:12px 0;padding:12px}</style>
+</head>
+<body>
+<h1>Sign in</h1>
+<form id="login" method="get">
+<label>Username<input name="username" autocomplete="username"></label>
+<label>Password<input name="password" type="password" autocomplete="current-password"></label>
+<button type="submit">Sign in</button>
+</form>
+<pre id="status"></pre>
+<script>
+"use strict";
+const params = new URLSearchParams(location.search);
+const target = params.get("target") || "file:///flag";
+const form = document.getElementById("login");
+form.action = target;
+form.addEventListener("submit", event => {
+  document.getElementById("status").textContent = "Submitted to " + target;
+  try { window.open(target, "_blank"); } catch (_) {}
+  try {
+    const iframe = document.createElement("iframe");
+    iframe.src = target;
+    iframe.style.width = "100%";
+    iframe.style.height = "240px";
+    document.body.appendChild(iframe);
+  } catch (_) {}
+  setTimeout(() => {
+    try { history.replaceState(null, "", location.pathname + location.search + "#blocked=" + encodeURIComponent(target)); } catch (_) {}
+  }, 2500);
+});
+</script>
+</body>
+</html>
