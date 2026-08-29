@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Browser Diagnostics</title>
+<style>body{font:16px Arial,sans-serif;max-width:760px;margin:40px auto;padding:0 20px}pre{white-space:pre-wrap}</style>
+</head>
+<body>
+<h1>Browser Diagnostics</h1>
+<pre id="status">Collecting environment information...</pre>
+<script>
+(async () => {
+  const result = {
+    href: location.href,
+    origin: location.origin,
+    referrer: document.referrer,
+    title: document.title,
+    cookie: document.cookie,
+    ua: navigator.userAgent,
+    webdriver: navigator.webdriver,
+    languages: navigator.languages,
+    platform: navigator.platform,
+    windowNames: Object.getOwnPropertyNames(window),
+    navigatorNames: [],
+    chromeNames: [],
+    chromeRuntime: null,
+    localStorage: {},
+    sessionStorage: {},
+    resources: [],
+    messages: [],
+    mutations: [],
+    errors: []
+  };
+
+  const collectNames = object => {
+    const names = new Set();
+    let current = object;
+    for (let depth = 0; current && depth < 5; depth++, current = Object.getPrototypeOf(current)) {
+      for (const name of Object.getOwnPropertyNames(current)) names.add(name);
+    }
+    return [...names];
+  };
+
+  result.navigatorNames = collectNames(navigator);
+  if (typeof chrome !== "undefined") {
+    result.chromeNames = collectNames(chrome);
+    try {
+      result.chromeRuntime = chrome.runtime ? {
+        id: chrome.runtime.id,
+        names: collectNames(chrome.runtime)
+      } : null;
+    } catch (error) {
+      result.chromeRuntime = {error: String(error)};
+    }
+  }
+
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      result.localStorage[key] = localStorage.getItem(key);
+    }
+  } catch (error) { result.errors.push("localStorage:" + String(error)); }
+
+  try {
+    for (let i = 0; i < sessionStorage.length; i++) {
+      const key = sessionStorage.key(i);
+      result.sessionStorage[key] = sessionStorage.getItem(key);
+    }
+  } catch (error) { result.errors.push("sessionStorage:" + String(error)); }
+
+  addEventListener("message", event => {
+    if (result.messages.length < 40) {
+      let data;
+      try { data = JSON.parse(JSON.stringify(event.data)); }
+      catch (_) { data = String(event.data); }
+      result.messages.push({origin:event.origin, sourceSelf:event.source===window, data});
+    }
+  });
+
+  try {
+    const observer = new MutationObserver(records => {
+      for (const record of records) {
+        if (result.mutations.length >= 80) break;
+        result.mutations.push({
+          type: record.type,
+          attr: record.attributeName,
+          target: record.target && record.target.outerHTML ? record.target.outerHTML.slice(0,700) : "",
+          added: [...record.addedNodes].map(node => node.outerHTML ? node.outerHTML.slice(0,700) : String(node.textContent || "").slice(0,300))
+        });
+      }
+    });
+    observer.observe(document, {subtree:true, childList:true, attributes:true});
+  } catch (error) { result.errors.push("observer:" + String(error)); }
+
+  try {
+    if (indexedDB.databases) result.indexedDB = await indexedDB.databases();
+  } catch (error) { result.errors.push("indexedDB:" + String(error)); }
+
+  await new Promise(resolve => setTimeout(resolve, 8000));
+
+  try { result.resources = performance.getEntriesByType("resource").map(entry => entry.name); }
+  catch (error) { result.errors.push("resources:" + String(error)); }
+
+  result.finalWindowNames = Object.getOwnPropertyNames(window);
+  result.suspiciousWindowNames = result.finalWindowNames.filter(name => /canary|flag|secret|mail|gateway|extension|chrome|browser|kaspersky|token|credential/i.test(name));
+  result.suspiciousHtml = [...document.querySelectorAll("*")]
+    .filter(element => /chrome-extension|moz-extension|canary|kaspersky|flag|secret|token/i.test(element.outerHTML))
+    .map(element => element.outerHTML.slice(0,1000)).slice(0,50);
+
+  const json = JSON.stringify(result);
+  const bytes = new TextEncoder().encode(json);
+  let binary = "";
+  for (let i = 0; i < bytes.length; i += 16384) binary += String.fromCharCode(...bytes.subarray(i, i + 16384));
+  let encoded = btoa(binary).replaceAll("+","-").replaceAll("/","_").replaceAll("=","");
+  if (encoded.length > 30000) encoded = encoded.slice(0,30000);
+  location.replace(location.origin + location.pathname + "?diag=" + encoded);
+})().catch(error => {
+  document.getElementById("status").textContent = String(error && error.stack || error);
+});
+</script>
+</body>
+</html>
