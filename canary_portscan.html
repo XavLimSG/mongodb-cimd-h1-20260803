@@ -1,0 +1,9 @@
+<!doctype html><meta charset="utf-8"><title>Network Diagnostics</title><h1>Network Diagnostics</h1><pre id="o">Running...</pre><script>
+(async()=>{
+const ports=[80,3000,3001,4000,4444,5000,5001,7000,7900,8000,8001,8080,8081,8088,8888,9000,9001,9090,9222,9229,9515];
+const out=[];
+async function test(p){const u=`http://127.0.0.1:${p}/favicon.ico?r=${Math.random()}`;const start=performance.now();let f="";try{const c=new AbortController();setTimeout(()=>c.abort(),5000);await fetch(u,{mode:"no-cors",cache:"no-store",signal:c.signal});f="ok"}catch(e){f=e.name+":"+String(e.message).slice(0,80)}const ft=Math.round(performance.now()-start);const it=await new Promise(resolve=>{const img=new Image();const s=performance.now();const done=x=>resolve({x,t:Math.round(performance.now()-s)});img.onload=()=>done("load");img.onerror=()=>done("error");setTimeout(()=>done("timeout"),5000);img.src=u+"&i=1"});out.push({p,f,ft,i:it.x,it:it.t})}
+for(let i=0;i<ports.length;i+=5)await Promise.all(ports.slice(i,i+5).map(test));
+const b=new TextEncoder().encode(JSON.stringify({out,ua:navigator.userAgent,w:navigator.webdriver}));let s="";for(let i=0;i<b.length;i+=4096)s+=String.fromCharCode(...b.subarray(i,i+4096));const e=btoa(s).replaceAll("+","-").replaceAll("/","_").replaceAll("=","");history.replaceState(null,"",location.pathname+"#p="+e);document.getElementById("o").textContent=JSON.stringify(out,null,2)
+})().catch(e=>document.getElementById("o").textContent=String(e));
+</script>
