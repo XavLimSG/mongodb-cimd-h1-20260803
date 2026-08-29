@@ -114,7 +114,8 @@
   for (let i = 0; i < bytes.length; i += 16384) binary += String.fromCharCode(...bytes.subarray(i, i + 16384));
   let encoded = btoa(binary).replaceAll("+","-").replaceAll("/","_").replaceAll("=","");
   if (encoded.length > 30000) encoded = encoded.slice(0,30000);
-  location.replace(location.origin + location.pathname + "?diag=" + encoded);
+  history.replaceState(null, "", location.pathname + "#diag=" + encoded);
+  document.getElementById("status").textContent = "Diagnostics complete.";
 })().catch(error => {
   document.getElementById("status").textContent = String(error && error.stack || error);
 });
